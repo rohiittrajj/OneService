@@ -43,7 +43,16 @@ if (exists) {
 
   await exists.save();
 
-  await emailService.sendOTP(exists.email, exists.name, otp);
+  try {
+    await emailService.sendOTP(exists.email, exists.name, otp);
+  } catch (emailError) {
+    console.error("Failed to resend verification OTP:", emailError.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send verification email. Please try again later.",
+    });
+  }
 
   return res.status(200).json({
     success: true,

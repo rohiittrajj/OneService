@@ -1,20 +1,16 @@
 /**
- * OneService – Email Service (Nodemailer)
+ * OneService – Email Service (Resend)
  */
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT) || 587,
-  secure: false,
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const BASE_STYLE = `
   font-family: 'Segoe UI', sans-serif;
   background: #f0f6fd;
   padding: 40px 20px;
 `;
+
 const CARD_STYLE = `
   background: white;
   border-radius: 16px;
@@ -23,21 +19,33 @@ const CARD_STYLE = `
   margin: 0 auto;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 `;
+
 const PRIMARY = "#3b82f6";
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"OneService" <noreply@oneservice.com>',
-      to, subject, html,
+    const { data, error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "OneService <onboarding@resend.dev>",
+      to,
+      subject,
+      html,
     });
+
+    if (error) {
+      console.error("Email send error:", error);
+      throw new Error(error.message);
+    }
+
+    console.log("Email sent successfully:", data?.id);
+    return true;
   } catch (err) {
     console.error("Email send error:", err.message);
+    throw err;
   }
 };
 
 exports.sendOTP = async (email, name, otp) => {
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: "Verify your OneService account",
     html: `
@@ -56,7 +64,7 @@ exports.sendOTP = async (email, name, otp) => {
 };
 
 exports.sendPasswordResetOTP = async (email, name, otp) => {
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: "Reset your OneService password",
     html: `
@@ -75,7 +83,7 @@ exports.sendPasswordResetOTP = async (email, name, otp) => {
 };
 
 exports.sendPaymentConfirmation = async (email, name, { amount, bookingId }) => {
-  await sendEmail({
+  return sendEmail({
     to: email,
     subject: `Payment Confirmed – ₹${amount} | OneService`,
     html: `
@@ -100,8 +108,12 @@ exports.sendPaymentConfirmation = async (email, name, { amount, bookingId }) => 
   });
 };
 
-exports.sendBookingConfirmation = async (email, name, { bookingId, serviceName, scheduledAt }) => {
-  await sendEmail({
+exports.sendBookingConfirmation = async (
+  email,
+  name,
+  { bookingId, serviceName, scheduledAt }
+) => {
+  return sendEmail({
     to: email,
     subject: `Booking Confirmed – ${serviceName} | OneService`,
     html: `

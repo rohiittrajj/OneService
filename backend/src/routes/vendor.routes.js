@@ -69,25 +69,31 @@ router.patch("/me/live-location", protect, authorize("vendor"), async (req, res,
 // GET /api/vendors/nearby?lat=&lng=&radius=&category=
 router.get("/nearby", async (req, res, next) => {
   try {
-    const { lat, lng, radius = 5000, category, page = 1, limit = 10 } = req.query;
-    if (!lat || !lng) return res.status(400).json({ success: false, message: "lat and lng are required." });
+    const { lat, lng, radius = 50000, category, page = 1, limit = 20 } = req.query;
 
-    const filter = {
-      status: "approved",
-      location: {
+    const filter = { status: "approved" };
+
+    if (lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
+      filter.location = {
         $near: {
           $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
           $maxDistance: parseInt(radius),
         },
-      },
-    };
-    if (category) filter.categories = { $in: [category] };
+      };
+    }
+
+    if (category && category !== "All") {
+      filter.categories = { $in: [category] };
+    }
+
+    const sortOption = (lat && lng) ? {} : { rating: -1, totalReviews: -1 };
 
     const vendors = await Vendor.find(filter)
       .populate("user", "name avatar")
+      .sort(sortOption)
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .select("businessName rating totalReviews vendorId isVerified categories location availability");
+      .select("businessName rating totalReviews vendorId isVerified categories location availability description");
 
     res.json({ success: true, data: vendors });
   } catch (err) { next(err); }

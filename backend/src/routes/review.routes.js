@@ -22,34 +22,35 @@ router.post("/", protect, async (req, res, next) => {
     const exists = await Review.findOne({ booking: bookingId });
     if (exists) return res.status(409).json({ success: false, message: "Already reviewed this booking." });
 
-    // AI sentiment analysis
+    // AI sentiment analysis directly in-process
     let sentiment = {};
     if (comment) {
       try {
-        const aiRes = await fetch(`${process.env.CLIENT_URL?.replace("3000", "5000") || "http://localhost:5000"}/api/ai/analyze-review`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reviewText: comment, rating }),
-        });
-        const aiData = await aiRes.json();
-        if (aiData.success) sentiment = aiData.data;
+        const { computeReviewSentiment } = require("../controllers/ai.controller");
+        sentiment = await computeReviewSentiment({ reviewText: comment, rating });
       } catch (_) { /* AI analysis optional */ }
     }
 
     const review = await Review.create({
       booking: bookingId, user: req.user._id,
       vendor: vendorId, service: serviceId,
-      rating, comment, images, sentiment,
+      rating: Number(rating), comment, images, sentiment,
     });
 
     // Recalculate vendor & service rating
     const vendorReviews = await Review.find({ vendor: vendorId, isVisible: true });
     const avgRating = vendorReviews.reduce((sum, r) => sum + r.rating, 0) / vendorReviews.length;
-    await Vendor.findByIdAndUpdate(vendorId, { rating: avgRating.toFixed(1), totalReviews: vendorReviews.length });
+    await Vendor.findByIdAndUpdate(vendorId, {
+      rating: Number(avgRating.toFixed(1)),
+      totalReviews: vendorReviews.length,
+    });
 
     const serviceReviews = await Review.find({ service: serviceId, isVisible: true });
     const svcAvg = serviceReviews.reduce((sum, r) => sum + r.rating, 0) / serviceReviews.length;
-    await Service.findByIdAndUpdate(serviceId, { rating: svcAvg.toFixed(1), totalReviews: serviceReviews.length });
+    await Service.findByIdAndUpdate(serviceId, {
+      rating: Number(svcAvg.toFixed(1)),
+      totalReviews: serviceReviews.length,
+    });
 
     res.status(201).json({ success: true, data: review });
   } catch (err) { next(err); }

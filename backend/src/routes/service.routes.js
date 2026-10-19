@@ -17,9 +17,15 @@ router.get("/", async (req, res, next) => {
       filter["price.base"] = {};
       if (minPrice) filter["price.base"].$gte = Number(minPrice);
       if (maxPrice) filter["price.base"].$lte = Number(maxPrice);
-    }
     if (rating) filter.rating = { $gte: Number(rating) };
-    if (search) filter.$text = { $search: search };
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { tags: { $in: [new RegExp(search, "i")] } },
+      ];
+    }
 
     const sortMap = { rating: { rating: -1 }, price_asc: { "price.base": 1 }, price_desc: { "price.base": -1 }, newest: { createdAt: -1 } };
     const sort = sortMap[sortBy] || { rating: -1 };

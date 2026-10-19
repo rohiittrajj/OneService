@@ -111,6 +111,32 @@ exports.demoPay = async (req, res, next) => {
       }
     } catch (_) {}
 
+    // Real-time socket broadcast
+    try {
+      const { getIO } = require("../socket/socketManager");
+      const io = getIO();
+      io.to(`booking_${booking._id}`).emit("booking_status_update", {
+        bookingId: booking._id,
+        status: "in_progress",
+      });
+      io.to(`user_${booking.user._id}`).emit("booking_status_update", {
+        bookingId: booking._id,
+        status: "in_progress",
+      });
+      io.to(`vendor_${booking.vendor}`).emit("booking_status_update", {
+        bookingId: booking._id,
+        status: "in_progress",
+      });
+    } catch (_) {}
+
+    await notificationService.send({
+      recipientId: booking.user._id,
+      type: "payment_success",
+      title: "Payment Successful",
+      message: `Your payment of ₹${payment.amount} was confirmed!`,
+      data: { bookingId: booking._id },
+    });
+
     res.json({ success: true, message: "Payment verified successfully!", payment });
   } catch (err) {
     next(err);
@@ -157,6 +183,24 @@ exports.stripeWebhook = async (req, res) => {
             bookingId: booking.bookingId,
           });
         }
+
+        // Real-time socket broadcast
+        try {
+          const { getIO } = require("../socket/socketManager");
+          const io = getIO();
+          io.to(`booking_${booking._id}`).emit("booking_status_update", {
+            bookingId: booking._id,
+            status: "in_progress",
+          });
+          io.to(`user_${payment.user}`).emit("booking_status_update", {
+            bookingId: booking._id,
+            status: "in_progress",
+          });
+          io.to(`vendor_${payment.vendor}`).emit("booking_status_update", {
+            bookingId: booking._id,
+            status: "in_progress",
+          });
+        } catch (_) {}
 
         // Notify user
         await notificationService.send({

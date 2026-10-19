@@ -385,15 +385,12 @@ Return ONLY valid JSON.`;
   }
 };
 
-// ── POST /api/ai/analyze-review ───────────────────────────────────────────────
-exports.analyzeReview = async (req, res, next) => {
-  try {
-    const { reviewText, rating } = req.body;
-    let result = null;
+async function computeReviewSentiment({ reviewText, rating }) {
+  let result = null;
 
-    if (openai && process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes("...")) {
-      try {
-        const prompt = `Analyze this service review for sentiment and authenticity.
+  if (openai && process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes("...")) {
+    try {
+      const prompt = `Analyze this service review for sentiment and authenticity.
 Review: "${reviewText}"
 Rating given: ${rating}/5
 
@@ -407,35 +404,45 @@ Return JSON only:
   "emotions": ["emotion1", "emotion2"]
 }`;
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 200,
-        });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 200,
+      });
 
-        const raw = completion.choices[0].message.content.replace(/```json|```/g, "").trim();
-        result = JSON.parse(raw);
-      } catch (aiErr) {
-        console.warn("⚠️ OpenAI Sentiment unavailable (using rating heuristic):", aiErr.message);
-      }
+      const raw = completion.choices[0].message.content.replace(/```json|```/g, "").trim();
+      result = JSON.parse(raw);
+    } catch (aiErr) {
+      console.warn("⚠️ OpenAI Sentiment unavailable (using rating heuristic):", aiErr.message);
     }
+  }
 
-    if (!result) {
-      const numRating = Number(rating) || 5;
-      const sentimentLabel = numRating >= 4 ? "positive" : numRating === 3 ? "neutral" : "negative";
-      const sentimentScore = numRating >= 4 ? 0.85 : numRating === 3 ? 0.1 : -0.75;
-      const emotions = numRating >= 4 ? ["satisfied", "grateful"] : numRating === 3 ? ["neutral"] : ["disappointed", "frustrated"];
+  if (!result) {
+    const numRating = Number(rating) || 5;
+    const sentimentLabel = numRating >= 4 ? "positive" : numRating === 3 ? "neutral" : "negative";
+    const sentimentScore = numRating >= 4 ? 0.85 : numRating === 3 ? 0.1 : -0.75;
+    const emotions = numRating >= 4 ? ["satisfied", "grateful"] : numRating === 3 ? ["neutral"] : ["disappointed", "frustrated"];
 
-      result = {
-        sentimentScore,
-        sentimentLabel,
-        isFake: false,
-        fakeConfidence: 0.05,
-        flagReason: "",
-        emotions,
-      };
-    }
+    result = {
+      sentimentScore,
+      sentimentLabel,
+      isFake: false,
+      fakeConfidence: 0.05,
+      flagReason: "",
+      emotions,
+    };
+  }
 
+  return result;
+}
+
+exports.computeReviewSentiment = computeReviewSentiment;
+
+// ── POST /api/ai/analyze-review ───────────────────────────────────────────────
+exports.analyzeReview = async (req, res, next) => {
+  try {
+    const { reviewText, rating } = req.body;
+    const result = await computeReviewSentiment({ reviewText, rating });
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);

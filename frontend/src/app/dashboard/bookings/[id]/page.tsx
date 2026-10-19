@@ -31,6 +31,20 @@ function PaymentForm({ bookingId, amount, onSuccess }: { bookingId: string; amou
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  const handleDemoPay = async () => {
+    setDemoLoading(true);
+    try {
+      await api.post("/payments/demo-pay", { bookingId });
+      toast.success("Payment verified successfully! 🎉");
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Demo payment failed.");
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   const handlePay = async () => {
     if (!stripe || !elements) return;
@@ -54,15 +68,30 @@ function PaymentForm({ bookingId, amount, onSuccess }: { bookingId: string; amou
   };
 
   return (
-    <div className="space-y-4">
-      <div className="border border-slate-200 rounded-xl p-4 bg-white">
+    <div className="space-y-3.5">
+      {/* 1-Click Demo Payment Option for college showcase */}
+      <button
+        type="button"
+        onClick={handleDemoPay}
+        disabled={demoLoading || loading}
+        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+      >
+        {demoLoading ? <Loader2 size={15} className="animate-spin" /> : <span>⚡ Instant Demo Pay (₹{amount})</span>}
+      </button>
+
+      <div className="relative flex items-center justify-center my-2">
+        <div className="border-t border-slate-200 w-full" />
+        <span className="bg-white px-3 text-[10px] text-slate-400 uppercase font-bold tracking-wider absolute">Or Stripe Card</span>
+      </div>
+
+      <div className="border border-slate-200 rounded-xl p-3.5 bg-white">
         <CardElement options={{ style: { base: { fontSize: "14px", color: "#1e293b", "::placeholder": { color: "#94a3b8" } } } }} />
       </div>
-      <button onClick={handlePay} disabled={loading || !stripe} className="btn-primary w-full flex items-center justify-center gap-2">
+      <button onClick={handlePay} disabled={loading || !stripe || demoLoading} className="btn-primary w-full flex items-center justify-center gap-2 text-xs py-2.5">
         {loading ? <Loader2 size={16} className="animate-spin" /> : <CreditCard size={16} />}
-        {loading ? "Processing..." : `Pay ₹${amount}`}
+        {loading ? "Processing..." : `Pay ₹${amount} with Card`}
       </button>
-      <p className="text-xs text-slate-400 text-center">🔒 Secured by Stripe · Test card: 4242 4242 4242 4242</p>
+      <p className="text-[11px] text-slate-400 text-center">🔒 Test card: 4242 4242 4242 4242</p>
     </div>
   );
 }
@@ -159,6 +188,31 @@ export default function BookingDetailPage() {
   const socket = useSocket();
   const [showPayment, setShowPayment] = useState(false);
   const [vendorLocation, setVendorLocation] = useState<[number, number] | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadReceipt = async () => {
+    if (!booking) return;
+    setDownloading(true);
+    try {
+      const res = await api.get(`/bookings/${booking._id}/receipt`, {
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-${booking.bookingId || "booking"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Receipt downloaded successfully!");
+    } catch {
+      toast.error("Receipt generation failed. Ensure booking is completed.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/auth/login");
@@ -357,10 +411,15 @@ const cancelMutation = useMutation(
               <h3 className="font-bold text-slate-800 mb-1">Actions</h3>
 
               {booking.status === "completed" && (
-                <a href={`/api/bookings/${booking._id}/receipt`} target="_blank" rel="noreferrer"
-                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm">
-                  <Download size={16} /> Download Receipt
-                </a>
+                <button
+                  type="button"
+                  onClick={handleDownloadReceipt}
+                  disabled={downloading}
+                  className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                >
+                  {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                  Download PDF Receipt
+                </button>
               )}
 
               {canCancel && (

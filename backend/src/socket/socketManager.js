@@ -43,8 +43,15 @@ const initSocket = (server) => {
     // ── Join personal room ──────────────────────────────────────────────────
     socket.join(`user_${user._id}`);
     if (user.role === "vendor") {
-      // Vendor room for booking notifications
+      // Vendor room for booking notifications (joins both user._id and vendor._id)
       socket.join(`vendor_${user._id}`);
+      const Vendor = require("../models/Vendor.model");
+      Vendor.findOne({ user: user._id }).select("_id").then((v) => {
+        if (v) {
+          socket.join(`vendor_${v._id}`);
+          console.log(`🔌 Vendor socket joined room: vendor_${v._id}`);
+        }
+      }).catch(() => {});
     }
     if (user.role === "admin") {
       socket.join("admin_room");

@@ -33,17 +33,19 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://127.0.0.1:3000",
   "https://one-service-one.vercel.app",
-];
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without an Origin header (Postman, server-to-server, etc.)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests without an Origin header (Postman, server-to-server, curl, etc.)
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`Not allowed by CORS: ${origin}`));
       }
     },
     credentials: true,

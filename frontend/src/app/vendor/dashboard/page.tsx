@@ -43,7 +43,14 @@ export default function VendorDashboardPage() {
     return () => { socket.off("new_booking"); };
   }, [socket]);
 
-  const { data: vendorData } = useQuery("vendor-me", () => api.get("/vendors/me").then((r) => r.data), { enabled: isAuthenticated });
+  const { data: vendorData, isLoading: vendorLoading } = useQuery(
+    "vendor-me",
+    () => api.get("/vendors/me").then((r) => r.data).catch((err) => {
+      if (err.response?.status === 404) return { data: null };
+      throw err;
+    }),
+    { enabled: isAuthenticated }
+  );
   const { data: bookingsData, isLoading } = useQuery(
     "vendor-bookings",
     () => api.get(`/vendors/${vendorData?.data?._id}/bookings?limit=10`).then((r) => r.data),
@@ -53,19 +60,37 @@ export default function VendorDashboardPage() {
   const vendor = vendorData?.data;
   const bookings = bookingsData?.data || [];
 
- const statusMutation = useMutation(
-  ({ bookingId, status }: { bookingId: string; status: string }) =>
-    api.patch(`/bookings/${bookingId}/status`, { status }),
-  {
-    onSuccess: () => {
-      queryClient.invalidateQueries("vendor-bookings");
-      toast.success("Booking status updated.");
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || "Failed to update.");
-    },
+  const statusMutation = useMutation(
+    ({ bookingId, status }: { bookingId: string; status: string }) =>
+      api.patch(`/bookings/${bookingId}/status`, { status }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries("vendor-bookings");
+        toast.success("Booking status updated.");
+      },
+      onError: (err: any) => {
+        toast.error(err.response?.data?.message || "Failed to update.");
+      },
+    }
+  );
+
+  // Unregistered vendor profile screen
+  if (!vendorLoading && vendor === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-hero-gradient p-4">
+        <div className="glass-card p-10 text-center max-w-md">
+          <div className="text-6xl mb-4">🚀</div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Complete Vendor Profile</h2>
+          <p className="text-slate-500 mb-6">
+            You are signed in as a vendor! Please complete your business registration to start receiving customer bookings.
+          </p>
+          <Link href="/vendor/register" className="btn-primary w-full block py-3 text-center">
+            Complete Registration Now
+          </Link>
+        </div>
+      </div>
+    );
   }
-);
 
   // Pending approval screen
   if (vendor && vendor.status === "pending") {

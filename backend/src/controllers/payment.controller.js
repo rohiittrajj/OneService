@@ -65,6 +65,58 @@ exports.createPaymentIntent = async (req, res, next) => {
   }
 };
 
+// ── POST /api/payments/demo-pay ───────────────────────────────────────────────
+// Allows seamless demonstration in college presentations & testing without live Stripe credentials
+exports.demoPay = async (req, res, next) => {
+  try {
+    const { bookingId } = req.body;
+    const booking = await Booking.findById(bookingId).populate("user", "name email");
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found." });
+
+    if (booking.status !== "accepted") {
+      return res.status(400).json({ success: false, message: "Booking must be accepted before payment." });
+    }
+
+    const payment = await Payment.findOneAndUpdate(
+      { booking: bookingId },
+      {
+        booking: bookingId,
+        user: booking.user._id,
+        vendor: booking.vendor,
+        stripePaymentIntentId: "demo_pi_" + Date.now(),
+        stripeChargeId: "demo_ch_" + Date.now(),
+        amount: booking.amount.total,
+        currency: "inr",
+        platformFee: booking.amount.platformFee,
+        vendorAmount: booking.amount.total - booking.amount.platformFee,
+        status: "succeeded",
+      },
+      { upsert: true, new: true }
+    );
+
+    booking.status = "in_progress";
+    booking.timeline.push({ status: "in_progress", note: "Payment confirmed (Demo / Test mode)." });
+    await booking.save();
+
+    await Vendor.findByIdAndUpdate(booking.vendor, {
+      $inc: { "earnings.total": payment.vendorAmount, "earnings.pending": payment.vendorAmount },
+    });
+
+    try {
+      if (booking.user?.email) {
+        await emailService.sendPaymentConfirmation(booking.user.email, booking.user.name, {
+          amount: payment.amount,
+          bookingId: booking.bookingId,
+        });
+      }
+    } catch (_) {}
+
+    res.json({ success: true, message: "Payment verified successfully!", payment });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── POST /api/payments/webhook ────────────────────────────────────────────────
 exports.stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];

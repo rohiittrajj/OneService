@@ -1,12 +1,29 @@
 /**
- * OneService – Email Service (Resend)
+ * OneService – Email Service
+ * Production-ready email dispatcher with Nodemailer (Gmail SMTP) & Resend fallback
  */
+const nodemailer = require("nodemailer");
 const { Resend } = require("resend");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Nodemailer transporter with Gmail SMTP credentials
+let transporter = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.EMAIL_PORT || "587", 10),
+    secure: process.env.EMAIL_PORT === "465",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+}
+
+// Resend client (if configured)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const BASE_STYLE = `
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: #f0f6fd;
   padding: 40px 20px;
 `;
@@ -20,31 +37,74 @@ const CARD_STYLE = `
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 `;
 
-const PRIMARY = "#3b82f6";
+const PRIMARY = "#2563eb";
 
+/**
+ * Universal email dispatcher:
+ * 1. Tries Nodemailer (Gmail) first since credentials are authenticated.
+ * 2. Falls back to Resend if available.
+ * 3. Logs OTP to console for hassle-free local development and demos.
+ */
 const sendEmail = async ({ to, subject, html }) => {
-  try {
-    const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "OneService <onboarding@resend.dev>",
-      to,
-      subject,
-      html,
-    });
+  // Always log for local debug & showcase convenience
+  console.log(`📧 Dispatching email to [${to}] | Subject: "${subject}"`);
 
-    if (error) {
-      console.error("Email send error:", error);
-      throw new Error(error.message);
+  // Try Nodemailer first
+  if (transporter) {
+    try {
+      const fromAddr = process.env.EMAIL_FROM || `"OneService" <${process.env.EMAIL_USER}>`;
+      const info = await transporter.sendMail({
+        from: fromAddr,
+        to,
+        subject,
+        html,
+      });
+      console.log(`✅ Email delivered via Gmail SMTP (Message ID: ${info.messageId})`);
+      return true;
+    } catch (smtpErr) {
+      console.warn("⚠️ Gmail SMTP delivery failed:", smtpErr.message);
     }
-
-    console.log("Email sent successfully:", data?.id);
-    return true;
-  } catch (err) {
-    console.error("Email send error:", err.message);
-    throw err;
   }
+
+  // Fallback to Resend
+  if (resend) {
+    try {
+      // Use onboarding@resend.dev unless custom domain is verified
+      const fromAddr = process.env.EMAIL_FROM?.includes("resend.dev")
+        ? process.env.EMAIL_FROM
+        : "OneService <onboarding@resend.dev>";
+
+      const { data, error } = await resend.emails.send({
+        from: fromAddr,
+        to,
+        subject,
+        html,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      console.log(`✅ Email delivered via Resend (ID: ${data?.id})`);
+      return true;
+    } catch (resendErr) {
+      console.warn("⚠️ Resend delivery failed:", resendErr.message);
+    }
+  }
+
+  // If in development, don't break the entire user flow if outbound SMTP is blocked
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`ℹ️ [DEV MODE] Email to ${to} logged successfully without throwing error.`);
+    return true;
+  }
+
+  throw new Error("Unable to send email through configured providers.");
 };
 
 exports.sendOTP = async (email, name, otp) => {
+  console.log(`\n=================================================`);
+  console.log(`🔑 [OTP VERIFICATION CODE for ${email}]: ${otp}`);
+  console.log(`=================================================\n`);
+
   return sendEmail({
     to: email,
     subject: "Verify your OneService account",
@@ -64,6 +124,10 @@ exports.sendOTP = async (email, name, otp) => {
 };
 
 exports.sendPasswordResetOTP = async (email, name, otp) => {
+  console.log(`\n=================================================`);
+  console.log(`🔑 [PASSWORD RESET OTP for ${email}]: ${otp}`);
+  console.log(`=================================================\n`);
+
   return sendEmail({
     to: email,
     subject: "Reset your OneService password",
@@ -108,11 +172,7 @@ exports.sendPaymentConfirmation = async (email, name, { amount, bookingId }) => 
   });
 };
 
-exports.sendBookingConfirmation = async (
-  email,
-  name,
-  { bookingId, serviceName, scheduledAt }
-) => {
+exports.sendBookingConfirmation = async (email, name, { bookingId, serviceName, scheduledAt }) => {
   return sendEmail({
     to: email,
     subject: `Booking Confirmed – ${serviceName} | OneService`,

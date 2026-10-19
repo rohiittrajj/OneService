@@ -5,12 +5,12 @@ const mongoose = require("mongoose");
 
 const connectDB = async () => {
   try {
-    console.log("MONGODB_URI =", process.env.MONGODB_URI);
+    console.log("Connecting to MongoDB Atlas...");
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+    console.log(`✅ MongoDB connected successfully to host: ${conn.connection.host}`);
 
     mongoose.connection.on("error", (err) => {
       console.error("MongoDB connection error:", err);

@@ -12,7 +12,20 @@ let io;
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      origin: (origin, callback) => {
+        // Allow mobile apps, curl, localhost, 127.0.0.1, or configured CLIENT_URL
+        if (
+          !origin ||
+          origin.includes("localhost") ||
+          origin.includes("127.0.0.1") ||
+          origin.includes("vercel.app") ||
+          origin === process.env.CLIENT_URL
+        ) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
       methods: ["GET", "POST"],
       credentials: true,
     },

@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   ChevronLeft, Loader2, MapPin, Clock, CheckCircle,
   XCircle, MessageSquare, Download, CreditCard,
-  Calendar, Zap, AlertCircle, Send, Phone
+  Calendar, Zap, AlertCircle, Send, Phone, Star
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { loadStripe } from "@stripe/stripe-js";
@@ -105,7 +105,8 @@ function ChatSection({ booking }: { booking: any }) {
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const otherUser = user?._id === booking.user._id ? booking.vendor?.user : booking.user;
+  const isCustomer = user?._id === (booking.user?._id || booking.user);
+  const otherUser = isCustomer ? booking.vendor?.user : booking.user;
 
   useEffect(() => {
     api.get(`/chat/${booking._id}`).then((r) => { setMessages(r.data.data); setLoading(false); });
@@ -124,9 +125,18 @@ function ChatSection({ booking }: { booking: any }) {
 
   const sendMessage = () => {
     if (!text.trim() || !socket) return;
+    const targetReceiverId = isCustomer
+      ? (booking.vendor?.user?._id || booking.vendor?.user)
+      : (booking.user?._id || booking.user);
+
+    if (!targetReceiverId) {
+      toast.error("Unable to send: receiver not found.");
+      return;
+    }
+
     socket.emit("send_message", {
       bookingId: booking._id,
-      receiverId: otherUser?._id,
+      receiverId: targetReceiverId,
       message: text.trim(),
     });
     setText("");
@@ -136,7 +146,9 @@ function ChatSection({ booking }: { booking: any }) {
     <div className="glass-card flex flex-col h-96">
       <div className="p-4 border-b border-slate-100 flex items-center gap-3">
         <MessageSquare size={18} className="text-primary-500" />
-        <p className="font-semibold text-slate-800 text-sm">Chat with {user?._id === booking.user._id ? booking.vendor?.businessName : booking.user?.name}</p>
+        <p className="font-semibold text-slate-800 text-sm">
+          Chat with {isCustomer ? (booking.vendor?.businessName || "Vendor") : (booking.user?.name || "Customer")}
+        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -410,7 +422,17 @@ const cancelMutation = useMutation(
             <div className="glass-card p-5 space-y-3">
               <h3 className="font-bold text-slate-800 mb-1">Actions</h3>
 
-              {booking.status === "completed" && (
+              {booking.status === "completed" && isUser && (
+                <Link
+                  href={`/dashboard/reviews?bookingId=${booking._id}`}
+                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                >
+                  <Star size={15} className="fill-white" />
+                  Leave a Review
+                </Link>
+              )}
+
+              {(booking.status === "completed" || booking.paymentStatus === "paid") && (
                 <button
                   type="button"
                   onClick={handleDownloadReceipt}
@@ -438,22 +460,34 @@ const cancelMutation = useMutation(
               </Link>
             </div>
 
-            {/* Vendor contact */}
+            {/* Contact Card */}
             <div className="glass-card p-5">
-              <h3 className="font-bold text-slate-800 mb-3">Vendor Contact</h3>
+              <h3 className="font-bold text-slate-800 mb-3">{isUser ? "Vendor Contact" : "Customer Contact"}</h3>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center font-bold text-primary-700">
-                  {booking.vendor?.businessName?.charAt(0)}
+                  {isUser ? booking.vendor?.businessName?.charAt(0) : booking.user?.name?.charAt(0)}
                 </div>
                 <div>
-                  <p className="font-medium text-slate-800 text-sm">{booking.vendor?.businessName}</p>
-                  <p className="text-xs text-slate-400">ID: {booking.vendor?.vendorId}</p>
+                  <p className="font-medium text-slate-800 text-sm">
+                    {isUser ? booking.vendor?.businessName : booking.user?.name}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {isUser ? `ID: ${booking.vendor?.vendorId || "Verified"}` : (booking.user?.email || "Customer")}
+                  </p>
                 </div>
               </div>
-              {booking.user?.phone && (
-                <a href={`tel:${booking.user?.phone}`} className="btn-secondary w-full mt-3 text-sm flex items-center justify-center gap-2">
-                  <Phone size={15} /> Call Vendor
-                </a>
+              {isUser ? (
+                (booking.vendor?.user?.phone || booking.vendor?.phone) && (
+                  <a href={`tel:${booking.vendor?.user?.phone || booking.vendor?.phone}`} className="btn-secondary w-full mt-3 text-sm flex items-center justify-center gap-2">
+                    <Phone size={15} /> Call Vendor
+                  </a>
+                )
+              ) : (
+                booking.user?.phone && (
+                  <a href={`tel:${booking.user?.phone}`} className="btn-secondary w-full mt-3 text-sm flex items-center justify-center gap-2">
+                    <Phone size={15} /> Call Customer
+                  </a>
+                )
               )}
             </div>
           </div>

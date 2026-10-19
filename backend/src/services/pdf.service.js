@@ -47,13 +47,18 @@ exports.generateReceipt = (booking, payment) => {
     doc.moveTo(50, 390).lineTo(545, 390).strokeColor("#e2e8f0").lineWidth(1).stroke();
 
     const payY = 400;
-    addRow("Base Amount:", `₹${booking.amount.base}`, payY);
-    if (booking.amount.urgentFee > 0) addRow("Urgent Fee:", `₹${booking.amount.urgentFee}`, payY + 22);
-    addRow("Platform Fee:", `₹${booking.amount.platformFee}`, payY + 44);
+    const baseAmt = booking.amount?.base ?? 0;
+    const urgentFee = booking.amount?.urgentFee ?? 0;
+    const platformFee = booking.amount?.platformFee ?? 0;
+    const totalAmt = booking.amount?.total ?? (baseAmt + urgentFee + platformFee);
+
+    addRow("Base Amount:", `₹${baseAmt}`, payY);
+    if (urgentFee > 0) addRow("Urgent Fee:", `₹${urgentFee}`, payY + 22);
+    addRow("Platform Fee:", `₹${platformFee}`, payY + 44);
 
     doc.moveTo(50, payY + 68).lineTo(545, payY + 68).strokeColor("#e2e8f0").stroke();
     doc.fontSize(14).fillColor(PRIMARY).text("Total Paid:", 70, payY + 78);
-    doc.fontSize(16).fillColor(PRIMARY).text(`₹${booking.amount.total}`, 250, payY + 76);
+    doc.fontSize(16).fillColor(PRIMARY).text(`₹${totalAmt}`, 250, payY + 76);
 
     if (payment) {
       addRow("Payment ID:", payment.stripePaymentIntentId?.slice(-16) || "—", payY + 108);

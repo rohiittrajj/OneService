@@ -7,7 +7,6 @@ const { protect } = require("../middleware/auth.middleware");
 const { Review } = require("../models/index");
 const Vendor = require("../models/Vendor.model");
 const Service = require("../models/Service.model");
-const aiController = require("../controllers/ai.controller");
 
 // POST /api/reviews
 router.post("/", protect, async (req, res, next) => {

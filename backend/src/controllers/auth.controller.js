@@ -2,7 +2,6 @@
  * OneService – Auth Controller
  */
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
 const User = require("../models/User.model");
 const emailService = require("../services/email.service");
 

@@ -17,6 +17,7 @@ router.get("/", async (req, res, next) => {
       filter["price.base"] = {};
       if (minPrice) filter["price.base"].$gte = Number(minPrice);
       if (maxPrice) filter["price.base"].$lte = Number(maxPrice);
+    }
     if (rating) filter.rating = { $gte: Number(rating) };
     if (search) {
       filter.$or = [
@@ -56,10 +57,20 @@ router.get("/:id", async (req, res, next) => {
 // POST /api/services — vendor creates a service
 router.post("/", protect, authorize("vendor", "admin"), async (req, res, next) => {
   try {
-    const vendor = await Vendor.findOne({ user: req.user._id, status: "approved" });
-    if (!vendor) return res.status(403).json({ success: false, message: "Only approved vendors can create services." });
+    let vendorId = req.body.vendor;
+    if (req.user.role === "admin") {
+      if (!vendorId) {
+        const anyApprovedVendor = await Vendor.findOne({ status: "approved" });
+        if (!anyApprovedVendor) return res.status(400).json({ success: false, message: "No approved vendors exist to assign this service." });
+        vendorId = anyApprovedVendor._id;
+      }
+    } else {
+      const vendor = await Vendor.findOne({ user: req.user._id, status: "approved" });
+      if (!vendor) return res.status(403).json({ success: false, message: "Only approved vendors can create services." });
+      vendorId = vendor._id;
+    }
 
-    const service = await Service.create({ ...req.body, vendor: vendor._id });
+    const service = await Service.create({ ...req.body, vendor: vendorId });
     res.status(201).json({ success: true, data: service });
   } catch (err) { next(err); }
 });
@@ -67,11 +78,16 @@ router.post("/", protect, authorize("vendor", "admin"), async (req, res, next) =
 // PATCH /api/services/:id
 router.patch("/:id", protect, authorize("vendor", "admin"), async (req, res, next) => {
   try {
-    const vendor = await Vendor.findOne({ user: req.user._id });
-    const service = await Service.findOne({ _id: req.params.id, vendor: vendor?._id });
-    if (!service) return res.status(404).json({ success: false, message: "Service not found or not yours." });
+    let service;
+    if (req.user.role === "admin") {
+      service = await Service.findById(req.params.id);
+    } else {
+      const vendor = await Vendor.findOne({ user: req.user._id });
+      service = await Service.findOne({ _id: req.params.id, vendor: vendor?._id });
+    }
+    if (!service) return res.status(404).json({ success: false, message: "Service not found or not authorized to edit." });
 
-    const allowed = ["title", "description", "price", "duration", "images", "tags", "isActive"];
+    const allowed = ["title", "description", "category", "price", "duration", "images", "tags", "isActive"];
     allowed.forEach((f) => { if (req.body[f] !== undefined) service[f] = req.body[f]; });
     await service.save();
     res.json({ success: true, data: service });
@@ -81,8 +97,14 @@ router.patch("/:id", protect, authorize("vendor", "admin"), async (req, res, nex
 // DELETE /api/services/:id
 router.delete("/:id", protect, authorize("vendor", "admin"), async (req, res, next) => {
   try {
-    const vendor = await Vendor.findOne({ user: req.user._id });
-    await Service.findOneAndDelete({ _id: req.params.id, vendor: vendor?._id });
+    if (req.user.role === "admin") {
+      const deleted = await Service.findByIdAndDelete(req.params.id);
+      if (!deleted) return res.status(404).json({ success: false, message: "Service not found." });
+    } else {
+      const vendor = await Vendor.findOne({ user: req.user._id });
+      const deleted = await Service.findOneAndDelete({ _id: req.params.id, vendor: vendor?._id });
+      if (!deleted) return res.status(404).json({ success: false, message: "Service not found or not authorized." });
+    }
     res.json({ success: true, message: "Service deleted." });
   } catch (err) { next(err); }
 });

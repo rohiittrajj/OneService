@@ -3,7 +3,7 @@
  */
 const express = require("express");
 const router = express.Router();
-const { protect, authorize } = require("../middleware/auth.middleware");
+const { protect } = require("../middleware/auth.middleware");
 const {
   createPaymentIntent, stripeWebhook,
   requestRefund, getPaymentHistory

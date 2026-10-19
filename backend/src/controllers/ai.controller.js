@@ -7,7 +7,6 @@ const OpenAI = require("openai");
 const Service = require("../models/Service.model");
 const Vendor = require("../models/Vendor.model");
 const Booking = require("../models/Booking.model");
-const { Review } = require("../models/index");
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -89,7 +88,7 @@ function getRuleBasedChatResponse(lastUserMessage) {
 // ── POST /api/ai/analyze-image ────────────────────────────────────────────────
 exports.analyzeImage = async (req, res, next) => {
   try {
-    const { imageUrl, userLocation } = req.body;
+    const { imageUrl, userLocation: _userLocation } = req.body;
 
     if (!imageUrl) {
       return res.status(400).json({ success: false, message: "Image URL is required." });
@@ -168,7 +167,7 @@ Analyze this image and respond ONLY in valid JSON with this exact structure:
 // ── POST /api/ai/recommendations ─────────────────────────────────────────────
 exports.getRecommendations = async (req, res, next) => {
   try {
-    const { category, userLocation, radius = 5000 } = req.body;
+    const { category, userLocation: _userLocation, radius: _radius = 5000 } = req.body;
     const userId = req.user._id;
 
     // Get user's booking history for personalization

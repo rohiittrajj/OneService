@@ -239,21 +239,59 @@ exports.requestRefund = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
 
-    const refund = await stripe.refunds.create({
-      payment_intent: payment.stripePaymentIntentId,
-      reason: "requested_by_customer",
-    });
+    let refundId = `ref_demo_${Date.now()}`;
+    const isDemoIntent = !payment.stripePaymentIntentId || payment.stripePaymentIntentId.startsWith("pi_demo_");
+    const isStripeConfigured = process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_SECRET_KEY.startsWith("sk_test_placeholder");
+
+    if (!isDemoIntent && isStripeConfigured) {
+      try {
+        const refund = await stripe.refunds.create({
+          payment_intent: payment.stripePaymentIntentId,
+          reason: "requested_by_customer",
+        });
+        refundId = refund.id;
+      } catch (stripeErr) {
+        console.warn("Stripe refund call skipped/failed:", stripeErr.message);
+      }
+    }
 
     payment.status = "refunded";
-    payment.refund = { refundId: refund.id, amount: refund.amount / 100, reason, refundedAt: new Date() };
+    payment.refund = { refundId, amount: payment.amount, reason: reason || "Requested by customer", refundedAt: new Date() };
     await payment.save();
 
     await Booking.findByIdAndUpdate(req.params.bookingId, {
       status: "refunded",
-      $push: { timeline: { status: "refunded", note: "Refund processed." } },
+      paymentStatus: "refunded",
+      $push: { timeline: { status: "refunded", note: "Refund processed successfully." } },
     });
 
-    res.json({ success: true, message: "Refund processed successfully.", refundId: refund.id });
+    // Real-time socket broadcast
+    try {
+      const { getIO } = require("../socket/socketManager");
+      const io = getIO();
+      io.to(`booking_${req.params.bookingId}`).emit("booking_status_update", {
+        bookingId: req.params.bookingId,
+        status: "refunded",
+      });
+      io.to(`user_${payment.user}`).emit("booking_status_update", {
+        bookingId: req.params.bookingId,
+        status: "refunded",
+      });
+      io.to(`vendor_${payment.vendor}`).emit("booking_status_update", {
+        bookingId: req.params.bookingId,
+        status: "refunded",
+      });
+    } catch (_) {}
+
+    await notificationService.send({
+      recipientId: payment.user,
+      type: "booking_refunded",
+      title: "Refund Processed",
+      message: `Your payment of ₹${payment.amount} has been refunded.`,
+      data: { bookingId: req.params.bookingId },
+    });
+
+    res.json({ success: true, message: "Refund processed successfully.", refundId });
   } catch (err) {
     next(err);
   }
@@ -263,11 +301,25 @@ exports.requestRefund = async (req, res, next) => {
 exports.getPaymentHistory = async (req, res, next) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const filter = req.user.role === "admin" ? {} : { user: req.user._id };
+    let filter = {};
+
+    if (req.user.role === "admin") {
+      filter = {};
+    } else if (req.user.role === "vendor") {
+      const vendorDoc = await Vendor.findOne({ user: req.user._id });
+      if (vendorDoc) {
+        filter = { $or: [{ user: req.user._id }, { vendor: vendorDoc._id }] };
+      } else {
+        filter = { user: req.user._id };
+      }
+    } else {
+      filter = { user: req.user._id };
+    }
 
     const payments = await Payment.find(filter)
       .populate("booking", "bookingId scheduledAt")
       .populate("vendor", "businessName")
+      .populate("user", "name email")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));

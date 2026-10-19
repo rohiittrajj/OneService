@@ -113,8 +113,13 @@ router.get("/:id", async (req, res, next) => {
 router.get("/:id/bookings", protect, authorize("vendor", "admin"), async (req, res, next) => {
   try {
     const Booking = require("../models/Booking.model");
-    const vendor = await Vendor.findOne({ user: req.user._id });
-    if (!vendor) return res.status(404).json({ success: false, message: "Vendor not found." });
+    let vendor;
+    if (req.user.role === "admin" && req.params.id !== "me") {
+      vendor = await Vendor.findById(req.params.id);
+    } else {
+      vendor = await Vendor.findOne({ user: req.user._id });
+    }
+    if (!vendor) return res.status(404).json({ success: false, message: "Vendor profile not found." });
 
     const { status, page = 1, limit = 10 } = req.query;
     const filter = { vendor: vendor._id };
@@ -122,13 +127,17 @@ router.get("/:id/bookings", protect, authorize("vendor", "admin"), async (req, r
 
     const bookings = await Booking.find(filter)
       .populate("user", "name phone avatar")
-      .populate("service", "title category")
+      .populate("service", "title category images price")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
     const total = await Booking.countDocuments(filter);
-    res.json({ success: true, data: bookings, pagination: { total, page: Number(page) } });
+    res.json({
+      success: true,
+      data: bookings,
+      pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / limit) },
+    });
   } catch (err) { next(err); }
 });
 

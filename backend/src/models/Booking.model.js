@@ -29,6 +29,12 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    paymentStatus: {
+      type: String,
+      enum: ["unpaid", "paid", "refunded"],
+      default: "unpaid",
+    },
+
     scheduledAt: { type: Date, required: true },
     isUrgent: { type: Boolean, default: false },
 

@@ -16,7 +16,6 @@ The platform aims to simplify the process of discovering, booking, managing, and
 
 * Rohit Raj
 * Saksham Gupta
-* Rishav Kumar
 
   
 # 🚀 OneService — Full-Stack AI Service Marketplace

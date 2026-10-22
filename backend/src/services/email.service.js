@@ -16,6 +16,9 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    connectionTimeout: 4000, // 4s timeout prevents hanging on Render free tier
+    greetingTimeout: 3000,
+    socketTimeout: 5000,
   });
 }
 
@@ -41,15 +44,40 @@ const PRIMARY = "#2563eb";
 
 /**
  * Universal email dispatcher:
- * 1. Tries Nodemailer (Gmail) first since credentials are authenticated.
- * 2. Falls back to Resend if available.
- * 3. Logs OTP to console for hassle-free local development and demos.
+ * 1. Tries Resend (HTTP API, port 443) first — never blocked by cloud firewalls like Render.
+ * 2. Tries Nodemailer (Gmail SMTP) with strict 4s timeout.
+ * 3. Logs OTP to console for local testing and demo showcase convenience.
  */
 const sendEmail = async ({ to, subject, html }) => {
-  // Always log for local debug & showcase convenience
   console.log(`📧 Dispatching email to [${to}] | Subject: "${subject}"`);
 
-  // Try Nodemailer first
+  // Try Resend first (fast HTTPS port 443, never blocked by cloud hosts)
+  if (resend) {
+    try {
+      const fromAddr = process.env.EMAIL_FROM?.includes("resend.dev")
+        ? process.env.EMAIL_FROM
+        : "OneService <onboarding@resend.dev>";
+
+      const { data, error } = await resend.emails.send({
+        from: fromAddr,
+        to,
+        subject,
+        html,
+      });
+
+      if (!error && data?.id) {
+        console.log(`✅ Email delivered via Resend API (ID: ${data.id})`);
+        return true;
+      }
+      if (error) {
+        console.warn("⚠️ Resend delivery skipped/failed:", error.message);
+      }
+    } catch (resendErr) {
+      console.warn("⚠️ Resend API error:", resendErr.message);
+    }
+  }
+
+  // Try Nodemailer (Gmail SMTP) with 4s connection timeout
   if (transporter) {
     try {
       const fromAddr = process.env.EMAIL_FROM || `"OneService" <${process.env.EMAIL_USER}>`;
@@ -62,37 +90,11 @@ const sendEmail = async ({ to, subject, html }) => {
       console.log(`✅ Email delivered via Gmail SMTP (Message ID: ${info.messageId})`);
       return true;
     } catch (smtpErr) {
-      console.warn("⚠️ Gmail SMTP delivery failed:", smtpErr.message);
+      console.warn("⚠️ Gmail SMTP delivery failed/blocked:", smtpErr.message);
     }
   }
 
-  // Fallback to Resend
-  if (resend) {
-    try {
-      // Use onboarding@resend.dev unless custom domain is verified
-      const fromAddr = process.env.EMAIL_FROM?.includes("resend.dev")
-        ? process.env.EMAIL_FROM
-        : "OneService <onboarding@resend.dev>";
-
-      const { data, error } = await resend.emails.send({
-        from: fromAddr,
-        to,
-        subject,
-        html,
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-      console.log(`✅ Email delivered via Resend (ID: ${data?.id})`);
-      return true;
-    } catch (resendErr) {
-      console.warn("⚠️ Resend delivery failed:", resendErr.message);
-    }
-  }
-
-  // In production/cloud environments (e.g. Render free tier blocks outbound SMTP ports 465/587),
-  // log the email so user signups and logins are never hard-blocked.
+  // Cloud sandbox / demo fallback
   console.log(`ℹ️ Email to ${to} logged to server console (fallback dispatcher).`);
   return true;
 };

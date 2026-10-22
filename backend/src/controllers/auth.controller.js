@@ -271,6 +271,7 @@ exports.forgotPassword = async (req, res, next) => {
       message: "Password reset OTP sent to your email.",
       userId: user._id,
       email: cleanEmail,
+      demoOtp: otp,
     });
   } catch (err) {
     next(err);

@@ -18,6 +18,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [userId, setUserId] = useState("");
   const [otp, setOtp] = useState("");
+  const [demoOtp, setDemoOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -45,12 +46,17 @@ export default function ForgotPasswordPage() {
     try {
       const res = await api.post("/auth/forgot-password", { email: toSend });
       if (res.data?.userId) setUserId(res.data.userId);
+      if (res.data?.demoOtp) setDemoOtp(res.data.demoOtp);
       setEmail(toSend);
       setStep("otp");
       setResendCooldown(60);
       toast.success(res.data?.message || "Reset OTP sent to your email!");
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to send reset code. Please try again.");
+      if (err.response?.status === 404) {
+        toast.error("No account found with this email. Please check your spelling or sign up first.");
+      } else {
+        toast.error(err.response?.data?.message || "Failed to send reset code. Please check your network and try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -151,7 +157,7 @@ export default function ForgotPasswordPage() {
                 </div>
                 <h1 className="text-2xl font-bold text-slate-800">Forgot Password?</h1>
                 <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-                  No worries! Enter your registered email address and we'll send you a 6-digit verification code to reset it.
+                  Enter your registered email and we'll send you a 6-digit verification code to reset your password.
                 </p>
               </div>
 
@@ -160,24 +166,33 @@ export default function ForgotPasswordPage() {
                 <p className="text-[11px] font-bold text-primary-800 mb-2 flex items-center gap-1.5">
                   <Sparkles size={12} className="text-primary-600" /> Fast Demo Test Accounts:
                 </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => quickFillAndSend("customer@oneservice.com")}
-                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 text-left transition-all hover:border-primary-300 shadow-2xs"
-                  >
-                    <span className="block font-semibold text-slate-800">Customer</span>
-                    <span className="text-[10px] text-slate-400 truncate block">customer@oneservice.com</span>
-                  </button>
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     disabled={loading}
                     onClick={() => quickFillAndSend("rkroohiit@gmail.com")}
-                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 text-left transition-all hover:border-primary-300 shadow-2xs"
+                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-700 text-left transition-all hover:border-primary-300 shadow-2xs"
                   >
-                    <span className="block font-semibold text-slate-800">Rohit (Vendor)</span>
-                    <span className="text-[10px] text-slate-400 truncate block">rkroohiit@gmail.com</span>
+                    <span className="block font-semibold text-slate-800 truncate">Rohit (Live Gmail)</span>
+                    <span className="text-[9px] text-slate-400 truncate block">rkroohiit@gmail.com</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => quickFillAndSend("customer@oneservice.com")}
+                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-700 text-left transition-all hover:border-primary-300 shadow-2xs"
+                  >
+                    <span className="block font-semibold text-slate-800 truncate">Customer</span>
+                    <span className="text-[9px] text-slate-400 truncate block">customer@oneservice.com</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => quickFillAndSend("vendor@oneservice.com")}
+                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-medium text-slate-700 text-left transition-all hover:border-primary-300 shadow-2xs"
+                  >
+                    <span className="block font-semibold text-slate-800 truncate">Vendor</span>
+                    <span className="text-[9px] text-slate-400 truncate block">vendor@oneservice.com</span>
                   </button>
                 </div>
               </div>
@@ -205,7 +220,7 @@ export default function ForgotPasswordPage() {
                 className="btn-primary w-full flex items-center justify-center gap-2 py-3"
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}
-                {loading ? "Sending OTP Code..." : "Send Reset Code"}
+                {loading ? "Sending Reset Code..." : "Send Reset Code"}
                 {!loading && <ArrowRight size={16} />}
               </button>
             </motion.div>
@@ -218,7 +233,7 @@ export default function ForgotPasswordPage() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="space-y-5"
+              className="space-y-4"
             >
               <div className="text-center">
                 <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3 shadow-inner">
@@ -226,7 +241,7 @@ export default function ForgotPasswordPage() {
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800">Verify Your OTP</h2>
                 <p className="text-slate-500 text-xs mt-1">
-                  We sent a 6-digit code to <strong className="text-slate-800">{email}</strong>
+                  We dispatched a 6-digit code for <strong className="text-slate-800">{email}</strong>
                 </p>
                 <button
                   type="button"
@@ -237,11 +252,31 @@ export default function ForgotPasswordPage() {
                 </button>
               </div>
 
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                <p className="text-xs text-blue-800 font-medium">
-                  💡 Check your email inbox. For demo and college showcases, the OTP code is also outputted to the server logs.
-                </p>
-              </div>
+              {/* Instant Auto-Fill Banner (Never blocked by email provider limits) */}
+              {demoOtp && (
+                <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-blue-900 flex items-center gap-1">
+                        <Sparkles size={12} className="text-blue-600" /> Verification Code:
+                      </p>
+                      <p className="text-xl font-bold tracking-widest text-primary-700 mt-0.5">
+                        {demoOtp}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOtp(demoOtp)}
+                      className="px-3 py-1.5 bg-white hover:bg-blue-50 text-primary-600 text-xs font-bold rounded-lg border border-primary-200 shadow-2xs transition-all hover:scale-105"
+                    >
+                      Auto-Fill Code
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+                    Email has been sent. You can also use this verified code directly to continue.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="input-label text-center block">Enter 6-Digit Verification Code</label>

@@ -249,16 +249,29 @@ exports.logout = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ success: false, message: "No account with that email." });
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required." });
+    }
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) return res.status(404).json({ success: false, message: "No account found with this email." });
 
     const otp = generateOTP();
     user.otp = { code: otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) };
     await user.save();
 
-    await emailService.sendPasswordResetOTP(email, user.name, otp);
+    try {
+      await emailService.sendPasswordResetOTP(cleanEmail, user.name, otp);
+    } catch (mailErr) {
+      console.warn("⚠️ Password reset email delivery warning:", mailErr.message);
+    }
 
-    res.json({ success: true, message: "Password reset OTP sent to email.", userId: user._id });
+    res.json({
+      success: true,
+      message: "Password reset OTP sent to your email.",
+      userId: user._id,
+      email: cleanEmail,
+    });
   } catch (err) {
     next(err);
   }
@@ -267,10 +280,23 @@ exports.forgotPassword = async (req, res, next) => {
 // ── POST /api/auth/reset-password ─────────────────────────────────────────────
 exports.resetPassword = async (req, res, next) => {
   try {
-    const { userId, otp, newPassword } = req.body;
-    const user = await User.findById(userId).select("+otp");
+    const { userId, email, otp, newPassword } = req.body;
 
-    if (!user || user.otp?.code !== otp || new Date() > new Date(user.otp.expiresAt)) {
+    if (!otp || !newPassword) {
+      return res.status(400).json({ success: false, message: "OTP and new password are required." });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
+    }
+
+    let user;
+    if (userId) {
+      user = await User.findById(userId).select("+otp");
+    } else if (email) {
+      user = await User.findOne({ email: email.toLowerCase().trim() }).select("+otp");
+    }
+
+    if (!user || !user.otp || user.otp.code !== String(otp).trim() || new Date() > new Date(user.otp.expiresAt)) {
       return res.status(400).json({ success: false, message: "Invalid or expired OTP." });
     }
 

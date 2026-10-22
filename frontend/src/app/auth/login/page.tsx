@@ -28,6 +28,8 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
+  const [demoLoadingRole, setDemoLoadingRole] = useState<string | null>(null);
+
   const {
     register, handleSubmit, setValue,
     formState: { errors, isSubmitting },
@@ -77,7 +79,18 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemo = (email: string, pass: string) => {
+  const loginWithDemo = async (roleName: string, email: string, pass: string) => {
+    setDemoLoadingRole(roleName);
+    setValue("email", email);
+    setValue("password", pass);
+    try {
+      await onSubmit({ email, password: pass });
+    } finally {
+      setDemoLoadingRole(null);
+    }
+  };
+
+  const fillDemoOnly = (email: string, pass: string) => {
     setValue("email", email);
     setValue("password", pass);
     toast.success(`Filled credentials for ${email}`);
@@ -104,37 +117,56 @@ export default function LoginPage() {
 
         {/* 1-Click Demo Login Bar for College Showcase */}
         <div className="mb-6 p-3 bg-gradient-to-r from-primary-50 to-blue-50 border border-primary-100 rounded-xl">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-primary-800 mb-2">
-            <Sparkles size={13} className="text-primary-600" /> College Showcase 1-Click Login:
+          <div className="flex items-center justify-between text-xs font-bold text-primary-800 mb-2">
+            <span className="flex items-center gap-1.5">
+              <Sparkles size={13} className="text-primary-600" /> 1-Click Demo Showcase Login:
+            </span>
+            <span className="text-[10px] text-slate-400 font-normal">Click to sign in instantly</span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
-              onClick={() => fillDemo("customer@oneservice.com", "Password@123")}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center gap-1.5 shadow-2xs transition-all"
+              disabled={!!demoLoadingRole || isSubmitting}
+              onClick={() => loginWithDemo("Customer", "customer@oneservice.com", "Password@123")}
+              className="px-2.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-between shadow-2xs transition-all hover:border-primary-300"
             >
-              <User size={12} className="text-blue-500" /> Customer
+              <span className="flex items-center gap-1.5">
+                <User size={12} className="text-blue-500" /> Customer
+              </span>
+              {demoLoadingRole === "Customer" ? <Loader2 size={12} className="animate-spin text-primary-600" /> : <span className="text-[10px] text-primary-600 font-bold">Sign In →</span>}
             </button>
             <button
               type="button"
-              onClick={() => fillDemo("rkroohiit@gmail.com", "Password@123")}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center gap-1.5 shadow-2xs transition-all"
+              disabled={!!demoLoadingRole || isSubmitting}
+              onClick={() => loginWithDemo("Rohit", "rkroohiit@gmail.com", "Password@123")}
+              className="px-2.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-between shadow-2xs transition-all hover:border-primary-300"
             >
-              <Wrench size={12} className="text-amber-500" /> Rohit (Vendor)
+              <span className="flex items-center gap-1.5">
+                <Wrench size={12} className="text-amber-500" /> Rohit (Vendor)
+              </span>
+              {demoLoadingRole === "Rohit" ? <Loader2 size={12} className="animate-spin text-primary-600" /> : <span className="text-[10px] text-primary-600 font-bold">Sign In →</span>}
             </button>
             <button
               type="button"
-              onClick={() => fillDemo("vendor@oneservice.com", "Password@123")}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center gap-1.5 shadow-2xs transition-all"
+              disabled={!!demoLoadingRole || isSubmitting}
+              onClick={() => loginWithDemo("DemoVendor", "vendor@oneservice.com", "Password@123")}
+              className="px-2.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-between shadow-2xs transition-all hover:border-primary-300"
             >
-              <Wrench size={12} className="text-orange-500" /> Demo Vendor
+              <span className="flex items-center gap-1.5">
+                <Wrench size={12} className="text-orange-500" /> Demo Vendor
+              </span>
+              {demoLoadingRole === "DemoVendor" ? <Loader2 size={12} className="animate-spin text-primary-600" /> : <span className="text-[10px] text-primary-600 font-bold">Sign In →</span>}
             </button>
             <button
               type="button"
-              onClick={() => fillDemo("admin@oneservice.com", "Admin@123")}
-              className="px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center gap-1.5 shadow-2xs transition-all"
+              disabled={!!demoLoadingRole || isSubmitting}
+              onClick={() => loginWithDemo("Admin", "admin@oneservice.com", "Admin@123")}
+              className="px-2.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-semibold text-slate-700 flex items-center justify-between shadow-2xs transition-all hover:border-primary-300"
             >
-              <Shield size={12} className="text-purple-500" /> Admin
+              <span className="flex items-center gap-1.5">
+                <Shield size={12} className="text-purple-500" /> Admin
+              </span>
+              {demoLoadingRole === "Admin" ? <Loader2 size={12} className="animate-spin text-primary-600" /> : <span className="text-[10px] text-primary-600 font-bold">Sign In →</span>}
             </button>
           </div>
         </div>

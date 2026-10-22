@@ -4,7 +4,16 @@
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const getBaseApiUrl = () => {
+  let url = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  url = url.trim().replace(/\/+$/, "");
+  if (!url.endsWith("/api")) {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
+const API_URL = getBaseApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,

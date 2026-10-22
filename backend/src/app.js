@@ -26,6 +26,9 @@ const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 
+// Trust reverse proxy (Vercel, Render, AWS, Heroku) so rateLimit & IP detection work correctly
+app.set("trust proxy", 1);
+
 // ── Security & Middleware ────────────────────────────────────────────────────
 app.use(helmet());
 app.use(compression());
@@ -38,20 +41,30 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests without an Origin header (Postman, server-to-server, curl, etc.)
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Not allowed by CORS: ${origin}`));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  })
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests without an Origin header (Postman, server-to-server, curl, etc.)
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      origin.includes("vercel.app") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1") ||
+      origin.includes("onrender.com")
+    ) {
+      callback(null, true);
+    } else {
+      // Permissive fallback so presentations and custom domains never fail with CORS errors
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // Stripe webhook needs raw body — must be before express.json()
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
@@ -61,15 +74,15 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // ── Global Rate Limiter ──────────────────────────────────────────────────────
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,
+  max: 500,
   message: { success: false, message: "Too many requests, please try again later." },
 });
 app.use("/api", globalLimiter);
 
-// ── Auth-specific strict limiter ────────────────────────────────────────────
+// ── Auth-specific limiter (relaxed for testing and demo evaluation) ──────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 150,
   message: { success: false, message: "Too many auth attempts, try again later." },
 });
 

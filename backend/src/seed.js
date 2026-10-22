@@ -4,7 +4,6 @@
  */
 require("dotenv").config();
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
 const User = require("./models/User.model");
 const Vendor = require("./models/Vendor.model");
 const Service = require("./models/Service.model");
@@ -32,8 +31,9 @@ async function seedDatabase() {
 
     // ── 1. Create or Update Core Demo Users ──────────────────────────────────
     console.log("👤 Creating / updating demo users...");
-    const hashedPassword = await bcrypt.hash("Password@123", 12);
-    const adminPassword = await bcrypt.hash("Admin@123", 12);
+    // Plaintext passwords: User.model.js pre('save') hook handles hashing automatically
+    const defaultPassword = "Password@123";
+    const adminPassword = "Admin@123";
 
     const usersToUpsert = [
       {
@@ -50,7 +50,7 @@ async function seedDatabase() {
         email: "customer@oneservice.com",
         name: "Aman Sharma",
         phone: "+91 9876543210",
-        password: hashedPassword,
+        password: defaultPassword,
         role: "user",
         isVerified: true,
         isActive: true,
@@ -60,7 +60,7 @@ async function seedDatabase() {
         email: "vendor@oneservice.com",
         name: "Vikram Singh",
         phone: "+91 9876543211",
-        password: hashedPassword,
+        password: defaultPassword,
         role: "vendor",
         isVerified: true,
         isActive: true,
@@ -91,6 +91,7 @@ async function seedDatabase() {
       rohitUser.role = "vendor";
       rohitUser.isVerified = true;
       rohitUser.isActive = true;
+      rohitUser.password = defaultPassword;
       await rohitUser.save();
       seededUsers["rkroohiit@gmail.com"] = rohitUser;
       console.log("✅ Verified Rohit Raj account (rkroohiit@gmail.com) as vendor.");
@@ -99,7 +100,7 @@ async function seedDatabase() {
         email: "rkroohiit@gmail.com",
         name: "Rohit Raj",
         phone: "+91 8340399500",
-        password: hashedPassword,
+        password: defaultPassword,
         role: "vendor",
         isVerified: true,
         isActive: true,
@@ -119,11 +120,16 @@ async function seedDatabase() {
       if (!doc) {
         doc = await User.create({
           ...ev,
-          password: hashedPassword,
+          password: defaultPassword,
           role: "vendor",
           isVerified: true,
           isActive: true,
         });
+      } else {
+        doc.password = defaultPassword;
+        doc.isVerified = true;
+        doc.isActive = true;
+        await doc.save();
       }
       seededUsers[ev.email] = doc;
     }

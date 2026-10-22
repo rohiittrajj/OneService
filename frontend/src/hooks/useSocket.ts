@@ -6,6 +6,16 @@ import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuthStore } from "@/store/authStore";
 
+const getSocketUrl = () => {
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL.trim().replace(/\/+$/, "");
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.trim().replace(/\/api\/?$/, "").replace(/\/+$/, "");
+  }
+  return "http://localhost:5000";
+};
+
 let socketInstance: Socket | null = null;
 
 export const useSocket = () => {
@@ -16,7 +26,7 @@ export const useSocket = () => {
     if (!isAuthenticated || !accessToken) return;
 
     if (!socketInstance) {
-      socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000", {
+      socketInstance = io(getSocketUrl(), {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],
         reconnection: true,
